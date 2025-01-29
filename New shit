@@ -1,0 +1,137 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, img_to_array, load_img
+import os
+import cv2
+from sklearn.metrics import confusion_matrix
+
+# Funzione per mostrare la confusion matrix
+def plot_confusion_matrix(true_labels, predicted_labels, classes):
+    cm = confusion_matrix(true_labels, predicted_labels)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=classes, yticklabels=classes)
+    plt.title('Confusion Matrix')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.show()
+
+# Configurazione GPU
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+    print(f"GPU disponibili: {[gpu.name for gpu in gpus]}")
+else:
+    print("GPU non disponibile, verrà utilizzata la CPU.")
+
+# Funzione per convertire un'immagine in array numpy
+def convert_image_to_array(image_dir, size):
+    image = cv2.imread(image_dir)
+    if image is not None:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Converti in RGB
+        image = cv2.resize(image, size)
+        return img_to_array(image)
+    return np.array([])
+
+# Funzione per caricare le immagini
+def load_data(root_folder, img_size):
+    images, labels = [], []
+    categories = ['benign', 'malignant']
+    for cat in categories:
+        current_folder = os.path.join(root_folder, cat)
+        print(f'Caricando immagini da {current_folder}')
+        for image in os.listdir(current_folder):
+            if image.lower().endswith(".jpg"):
+                img_path = os.path.join(current_folder, image)
+                images.append(convert_image_to_array(img_path, img_size))
+                labels.append(cat)
+    return np.array(images), np.array(labels)
+
+# Definizione delle dimensioni delle immagini
+img_size = (128, 128)
+
+# Percorsi delle cartelle contenenti i dati
+train_folder = os.path.join(os.getcwd(), 'archive/train')
+test_folder = os.path.join(os.getcwd(), 'archive/test')
+
+# Caricamento dei dati
+tipo_dict = {'benign': 0, 'malignant': 1}
+train_x, train_y = load_data(train_folder, img_size)
+train_y_int = np.array([tipo_dict[i] for i in train_y])
+
+test_x, test_y = load_data(test_folder, img_size)
+test_y_int = np.array([tipo_dict[i] for i in test_y])
+
+# Normalizzazione delle immagini
+train_x = train_x / 255.0
+test_x = test_x / 255.0
+
+# Data Augmentation
+train_aug = ImageDataGenerator(
+    rotation_range=30, width_shift_range=0.1, height_shift_range=0.1,
+    zoom_range=0.1, horizontal_flip=True, rescale=1./255)
+
+# Modello MLP
+mlp_model = tf.keras.models.Sequential([
+    tf.keras.layers.Flatten(input_shape=(128, 128, 3)),
+    tf.keras.layers.Dense(256, activation='relu'),
+    tf.keras.layers.BatchNormalization(),
+    tf.keras.layers.Dropout(0.3),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.BatchNormalization(),
+    tf.keras.layers.Dropout(0.3),
+    tf.keras.layers.Dense(2, activation='softmax')
+])
+
+mlp_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+                  loss='categorical_crossentropy', metrics=['accuracy'])
+
+history_mlp = mlp_model.fit(
+    train_x, to_categorical(train_y_int, num_classes=2),
+    validation_data=(test_x, to_categorical(test_y_int, num_classes=2)),
+    epochs=10, verbose=1
+)
+
+# Valutazione MLP
+test_loss, test_accuracy = mlp_model.evaluate(test_x, to_categorical(test_y_int, num_classes=2))
+print('Test accuracy:', test_accuracy)
+
+# Modello CNN
+cnn_model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
+    tf.keras.layers.Dense(2, activation='softmax')
+])
+
+cnn_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+                  loss='categorical_crossentropy', metrics=['accuracy'])
+
+history_cnn = cnn_model.fit(
+    train_x, to_categorical(train_y_int, num_classes=2),
+    validation_data=(test_x, to_categorical(test_y_int, num_classes=2)),
+    epochs=20, verbose=1
+)
+
+# Valutazione CNN
+test_loss, test_accuracy = cnn_model.evaluate(test_x, to_categorical(test_y_int, num_classes=2))
+print('Test accuracy:', test_accuracy)
+
+# Predizioni sul test set
+y_pred_mlp = np.argmax(mlp_model.predict(test_x), axis=1)
+y_pred_cnn = np.argmax(cnn_model.predict(test_x), axis=1)
+
+# Plot confusion matrix
+classes = ["benign", "malignant"]
+plot_confusion_matrix(test_y_int, y_pred_mlp, classes)
+plot_confusion_matrix(test_y_int, y_pred_cnn, classes)
