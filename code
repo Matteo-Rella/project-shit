@@ -143,25 +143,25 @@ data_norm = ImageDataGenerator(
 batch_size = 64  # Dimensione del batch per il caricamento dei dati
 
 # Generatore di dati di training con data augmentation
-train_data = train_aug.flow_from_directory(
-    train_folder,  # Percorso della cartella di training
-    target_size=img_size,  # Ridimensiona le immagini alla dimensione specificata
-    color_mode='rgb',  # Colore RGB
-    class_mode='categorical',  # Etichette in formato categorico (one-hot encoding)
-    batch_size=batch_size,  # Dimensione del batch
-    shuffle=True,  # Abilita la miscelazione dei dati
-    seed=42  # Fissa il seed per la riproducibilità
-)
+#train_data = train_aug.flow_from_directory(
+#    train_folder,  # Percorso della cartella di training
+#    target_size=img_size,  # Ridimensiona le immagini alla dimensione specificata
+#    color_mode='rgb',  # Colore RGB
+#    class_mode='categorical',  # Etichette in formato categorico (one-hot encoding)
+#    batch_size=batch_size,  # Dimensione del batch
+#    shuffle=True,  # Abilita la miscelazione dei dati
+#    seed=42  # Fissa il seed per la riproducibilità
+#)
 
 # Se si desidera utilizzare solo la normalizzazione senza data augmentation:
-# train_data = data_norm.flow_from_directory(
-#    train_folder,
-#     color_mode='rgb',  # Colore RGB
-#     class_mode='categorical',  # Etichette in formato categorico (one-hot encoding)
-#    batch_size=batch_size,
-#    shuffle=True,
-#    seed=42
-# )
+train_data = data_norm.flow_from_directory(
+    train_folder,
+    color_mode='rgb',  # Colore RGB
+    class_mode='categorical',  # Etichette in formato categorico (one-hot encoding)
+    batch_size=batch_size,
+    shuffle=True,
+    seed=42
+)
 
 # Normalizzazione delle immagini di test (divisione per 255)
 test_x /= 255  # Porta i valori dei pixel nell'intervallo [0, 1]
@@ -190,7 +190,7 @@ mlp_model.compile(
 history_mlp = mlp_model.fit(
     np.array(train_x) / 255.0, to_categorical(train_y_int, num_classes=2),
     validation_data=(test_x, to_categorical(test_y_int, num_classes=2)),
-    epochs=10,
+    epochs=50,
     verbose=1
  )
 # PLOTS
@@ -246,12 +246,30 @@ plot_confusion_matrix(np.array(test_y_int), y_pred_mnist,classes)
 # val_loss = history.history['val_loss']
 
 # CREAZIONE DEL MODELLO CNN
+#cnn_model = tf.keras.models.Sequential([
+ #   tf.keras.layers.Conv2D(64, (5, 5), activation='relu', input_shape=(128, 128, 3)),
+  #  tf.keras.layers.Conv2D(64, (5, 5), activation='relu', input_shape=(128, 128, 3)),
+   # tf.keras.layers.Conv2D(64, (5, 5), activation='relu', input_shape=(128, 128, 3)),
+    #tf.keras.layers.Conv2D(64, (5, 5), activation='relu', input_shape=(128, 128, 3)),
+    #tf.keras.layers.Conv2D(64, (5, 5), activation='relu', input_shape=(128, 128, 3)),
+    #tf.keras.layers.MaxPooling2D((5, 5)),
+    #tf.keras.layers.Flatten(),
+    #tf.keras.layers.Dense(2, activation='softmax')
+#])
+
 cnn_model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(32, (5, 5), activation='relu', input_shape=(128, 128, 3)),
-    tf.keras.layers.MaxPooling2D((5, 5)),
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Conv2D(128, (3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling2D((2, 2)),
     tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(128, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
     tf.keras.layers.Dense(2, activation='softmax')
 ])
+
 
 cnn_model.summary()
 
@@ -263,11 +281,11 @@ cnn_model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
               metrics=['accuracy'])
 
 # Addestramento del modello
-n_epochs = 80
+n_epochs = 50
 history = cnn_model.fit(train_data,
     # np.array(train_x) / 255.0, to_categorical(train_y_int, num_classes=2),
     validation_data=(test_x, to_categorical(test_y_int, num_classes=2)),
-    epochs=80,
+    epochs=n_epochs,
     verbose=1)
 test_loss, test_acc = cnn_model.evaluate(test_x, to_categorical(test_y_int, num_classes=2), verbose=0)
 
@@ -315,7 +333,6 @@ plt.tight_layout()
 plt.show()
 
 #confusion matrix
-
 
 # Valutazione del modello sul set di test
 
